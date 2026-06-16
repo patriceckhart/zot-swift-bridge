@@ -1,96 +1,136 @@
 # zot swift bridge
 
-A small Go package that exposes zot's agent runtime to Swift through `gomobile bind`.
+Run the [zot](https://github.com/patriceckhart/zot) AI agent runtime natively inside your iOS and macOS apps.
 
-The package name is `zot`, so Swift imports the generated framework as `Zot`.
+This package compiles zot's Go agent core into an Apple `xcframework` using `gomobile`, then exposes a tiny, streaming, Swift-friendly API. You get an on-device chat session that talks directly to Anthropic, OpenAI, or Gemini, with no separate backend required.
 
-## Install from Swift Package Manager
+- Native: ships as a binary `xcframework`, no Go toolchain needed by consumers.
+- Streaming: text deltas, tool events, usage, and errors arrive as they happen.
+- Cross-platform: one API for iOS and macOS.
+- Small surface: three calls (`NewSession`, `prompt`, `abort`).
 
-After a GitHub release exists, users can add this repository as a Swift Package dependency in Xcode:
+## Requirements
+
+- iOS 15+ or macOS 12+
+- Xcode 15+
+- A provider API key (Anthropic, OpenAI, or Gemini)
+
+## Install
+
+In Xcode: File > Add Package Dependencies, then enter:
 
 ```text
 https://github.com/patriceckhart/zot-swift-bridge
 ```
 
-Then import the product:
+Or add it to your own `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/patriceckhart/zot-swift-bridge", from: "0.0.1")
+]
+```
+
+Then import:
 
 ```swift
 import Zot
 ```
 
-Releases are versioned as `0.0.1`, `0.0.2`, ..., `0.0.99`, `0.1.0`, `0.1.1`, and so on.
+## Quick start
 
-## Local build
+```swift
+import Zot
+
+// 1. Receive streaming output by conforming to ZotStreamProtocol.
+final class ChatStream: NSObject, ZotStreamProtocol {
+    func onText(_ delta: String?) {
+        print(delta ?? "", terminator: "")   // assistant text, token by token
+    }
+
+    func onEvent(_ kind: String?, payload: String?) {
+        // kind: tool_call, tool_progress, tool_result, turn_start, turn_end, usage
+        // payload: a small JSON string with the event details
+    }
+
+    func onError(_ message: String?) {
+        print("error:", message ?? "")
+    }
+
+    func onDone() {
+        print("\n[done]")
+    }
+}
+
+// 2. Create a session.
+var error: NSError?
+let session = ZotNewSession(
+    "anthropic",                       // anthropic | openai | openai-responses | gemini
+    apiKey,                            // your provider API key
+    "claude-sonnet-4-20250514",        // empty string "" uses the provider default
+    "You are a concise assistant.",    // system prompt (optional)
+    &error
+)
+
+// 3. Send a prompt. prompt() blocks until the turn ends, so run it off the main thread.
+Task.detached {
+    session?.prompt("Explain async/await in Swift in two sentences.", stream: ChatStream())
+}
+```
+
+To cancel an in-flight response:
+
+```swift
+session?.abort()
+```
+
+## API
+
+| Call | Description |
+|---|---|
+| `ZotNewSession(provider, apiKey, model, systemPrompt, &error)` | Creates a chat session. Pass `""` for `model` to use the provider default. |
+| `session.prompt(_:stream:)` | Sends one user message and streams the reply. Blocks until the turn completes. |
+| `session.abort()` | Cancels the active prompt, if any. |
+
+### Stream callbacks (`ZotStreamProtocol`)
+
+| Callback | When |
+|---|---|
+| `onText(_:)` | A chunk of assistant text. Concatenate to build the full reply. |
+| `onEvent(_:payload:)` | A lifecycle/tool event with a JSON payload string. |
+| `onError(_:)` | A non-fatal error occurred. |
+| `onDone()` | The turn finished (success or failure). |
+
+### Supported providers
+
+`anthropic`, `openai`, `openai-responses`, `gemini`
+
+## Security
+
+- Do not hardcode provider API keys in a shipped app. Users can extract them.
+- Prefer user-supplied keys, or proxy requests through your own server.
+- iOS cannot run zot's desktop shell, filesystem, or subprocess tools. This bridge intentionally registers none of them, so it is safe for the App Store sandbox.
+
+## Building the framework yourself
+
+Consumers do not need this. It is only for contributors building `Zot.xcframework` locally.
 
 ```sh
 go install golang.org/x/mobile/cmd/gomobile@latest
 gomobile init
 
-cd ~/Developer/zot-swift/zot-swift-bridge
+git clone https://github.com/patriceckhart/zot-swift-bridge
+cd zot-swift-bridge
 gomobile bind -target=ios,macos -o Zot.xcframework .
 ```
 
-Use only iOS-safe tools in this package. The current bridge registers no shell or filesystem tools, so it is suitable as a starting point for an iOS chat app.
+## Releases
 
-## Swift sketch
+Releases are published automatically by GitHub Actions and use the scheme `0.0.1`, `0.0.2`, ..., `0.0.99`, `0.1.0`, `0.1.1`.
 
-```swift
-import Zot
-
-final class ChatStream: NSObject, ZotStreamProtocol {
-    func onText(_ delta: String?) {
-        print(delta ?? "", terminator: "")
-    }
-
-    func onEvent(_ kind: String?, payload: String?) {
-        print("event", kind ?? "", payload ?? "")
-    }
-
-    func onError(_ message: String?) {
-        print("error", message ?? "")
-    }
-
-    func onDone() {
-        print("done")
-    }
-}
-
-var error: NSError?
-let session = ZotNewSession(
-    "anthropic",
-    apiKey,
-    "claude-sonnet-4-20250514",
-    "You are a concise assistant.",
-    &error
-)
-
-Task.detached {
-    session?.prompt("Hello", stream: ChatStream())
-}
-```
-
-## Release
-
-Push this repo to GitHub to run the `Release Swift Package` workflow automatically. You can also run it manually.
-
-The `Release When zot Updates` workflow also runs hourly. It checks the latest `github.com/patriceckhart/zot` release tag. If `go.mod` is behind, it updates the zot dependency, builds a new `Zot.xcframework.zip`, bumps this bridge's release version, updates `Package.swift`, and publishes a GitHub release.
-
-If you leave `version` empty, the workflow auto-increments from the latest `0.x.y` tag:
-
-```text
-no tag -> 0.0.1
-0.0.1 -> 0.0.2
-0.0.99 -> 0.1.0
-0.1.0 -> 0.1.1
-```
-
-The workflow builds `Zot.xcframework.zip`, computes the SwiftPM checksum, updates `Package.swift`, tags the commit, and attaches the zip to the GitHub release.
-
-## Notes
-
-- Do not embed provider API keys in a production app unless users supply their own keys.
-- iOS cannot run zot's desktop shell/subprocess extension model.
-- For macOS, you can keep this same API and add desktop-only tools later with Go build tags.
+- `Release Swift Package` runs on every push to `main` (and can be run manually). It builds the framework, computes the SwiftPM checksum, updates `Package.swift`, tags the commit, and publishes a GitHub release with the zipped framework attached.
+- `Release When zot Updates` runs hourly. When a newer `github.com/patriceckhart/zot` version is available, it bumps the dependency and cuts a fresh release automatically.
 
 ## License
+
 MIT
