@@ -1,0 +1,137 @@
+name: Release When zot Updates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zot-swift-bridge-release
+  cancel-in-progress: false
+
+jobs:
+  check-and-release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Resolve latest zot release
+        id: zot
+        run: |
+          LATEST="$(git ls-remote --tags --refs https://github.com/patriceckhart/zot.git 'v*' \
+            | awk '{print $2}' \
+            | sed 's#refs/tags/##' \
+            | sort -V \
+            | tail -n 1)"
+          if [ -z "$LATEST" ]; then
+            echo "no zot release tag found" >&2
+            exit 1
+          fi
+          CURRENT="$(go list -m -f '{{.Version}}' github.com/patriceckhart/zot)"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" = "$CURRENT" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop if zot is already current
+        if: steps.zot.outputs.changed == 'false'
+        run: echo "Already using zot ${{ steps.zot.outputs.current }}"
+
+      - name: Update zot dependency
+        if: steps.zot.outputs.changed == 'true'
+        run: |
+          go get github.com/patriceckhart/zot@${{ steps.zot.outputs.latest }}
+          go mod tidy
+          go test ./...
+
+      - name: Resolve bridge release version
+        if: steps.zot.outputs.changed == 'true'
+        id: version
+        run: |
+          chmod +x scripts/next-version.sh
+          VERSION="$(scripts/next-version.sh)"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "tag already exists: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install gomobile
+        if: steps.zot.outputs.changed == 'true'
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+
+      - name: Build XCFramework
+        if: steps.zot.outputs.changed == 'true'
+        run: |
+          gomobile bind -target=ios,macos -o Zot.xcframework .
+          zip -r -X Zot.xcframework.zip Zot.xcframework
+
+      - name: Compute SwiftPM checksum
+        if: steps.zot.outputs.changed == 'true'
+        id: checksum
+        run: echo "checksum=$(swift package compute-checksum Zot.xcframework.zip)" >> "$GITHUB_OUTPUT"
+
+      - name: Update Package.swift for this release
+        if: steps.zot.outputs.changed == 'true'
+        run: |
+          export VERSION="${{ steps.version.outputs.version }}"
+          export REPO="${{ github.repository }}"
+          export CHECKSUM="${{ steps.checksum.outputs.checksum }}"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+
+          version = os.environ["VERSION"]
+          repo = os.environ["REPO"]
+          checksum = os.environ["CHECKSUM"]
+          path = Path("Package.swift")
+          text = path.read_text()
+          text = re.sub(
+              r'url: "https://github.com/[^"]+/releases/download/[^"]+/Zot\.xcframework\.zip"',
+              f'url: "https://github.com/{repo}/releases/download/{version}/Zot.xcframework.zip"',
+              text,
+          )
+          text = re.sub(r'checksum: "[a-fA-F0-9]{64}"', f'checksum: "{checksum}"', text)
+          path.write_text(text)
+          PY
+
+      - name: Commit dependency update and tag
+        if: steps.zot.outputs.changed == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZOT_VERSION="${{ steps.zot.outputs.latest }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go.mod go.sum Package.swift
+          git commit -m "Update zot to ${ZOT_VERSION}"
+          git tag "$VERSION"
+          git push origin HEAD
+          git push origin "$VERSION"
+
+      - name: Create GitHub release
+        if: steps.zot.outputs.changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: "Updates zot to ${{ steps.zot.outputs.latest }}."
+          files: Zot.xcframework.zip
+          generate_release_notes: true

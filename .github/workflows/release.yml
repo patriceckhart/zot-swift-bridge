@@ -1,0 +1,108 @@
+name: Release Swift Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional release version. Leave empty to auto-increment: 0.0.1, 0.0.2, ..., 0.0.99, 0.1.0"
+        required: false
+        type: string
+      repository:
+        description: "GitHub repository slug used in Package.swift URLs"
+        required: true
+        default: "patriceckhart/zot-swift-bridge"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        run: |
+          chmod +x scripts/next-version.sh
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="$(scripts/next-version.sh)"
+          fi
+          if ! [[ "$VERSION" =~ ^0\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must look like 0.x.y" >&2
+            exit 1
+          fi
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "tag already exists: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          gomobile init
+
+      - name: Build XCFramework
+        run: |
+          gomobile bind -target=ios,macos -o Zot.xcframework .
+          zip -r -X Zot.xcframework.zip Zot.xcframework
+
+      - name: Compute SwiftPM checksum
+        id: checksum
+        run: echo "checksum=$(swift package compute-checksum Zot.xcframework.zip)" >> "$GITHUB_OUTPUT"
+
+      - name: Update Package.swift for this release
+        run: |
+          export VERSION="${{ steps.version.outputs.version }}"
+          export REPO="${{ inputs.repository }}"
+          export CHECKSUM="${{ steps.checksum.outputs.checksum }}"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+
+          version = os.environ["VERSION"]
+          repo = os.environ["REPO"]
+          checksum = os.environ["CHECKSUM"]
+          path = Path("Package.swift")
+          text = path.read_text()
+          text = re.sub(
+              r'url: "https://github.com/[^"]+/releases/download/[^"]+/Zot\.xcframework\.zip"',
+              f'url: "https://github.com/{repo}/releases/download/{version}/Zot.xcframework.zip"',
+              text,
+          )
+          text = re.sub(r'checksum: "[a-fA-F0-9]{64}"', f'checksum: "{checksum}"', text)
+          path.write_text(text)
+          PY
+
+      - name: Commit Package.swift and tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "Release ${VERSION}" || true
+          git tag "${VERSION}"
+          git push origin HEAD
+          git push origin "${VERSION}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          files: Zot.xcframework.zip
+          generate_release_notes: true
