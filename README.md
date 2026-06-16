@@ -1,4 +1,4 @@
-# zot Swift bridge
+# zot swift bridge
 
 A small Go package that exposes zot's agent runtime to Swift through `gomobile bind`.
 
@@ -91,3 +91,6 @@ The workflow builds `Zot.xcframework.zip`, computes the SwiftPM checksum, update
 - Do not embed provider API keys in a production app unless users supply their own keys.
 - iOS cannot run zot's desktop shell/subprocess extension model.
 - For macOS, you can keep this same API and add desktop-only tools later with Go build tags.
+
+## License
+MIT
