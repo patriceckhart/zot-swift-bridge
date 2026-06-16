@@ -71,7 +71,7 @@ Task.detached {
 
 ## Release
 
-Push this repo to GitHub, then run the `Release Swift Package` workflow manually.
+Push this repo to GitHub to run the `Release Swift Package` workflow automatically. You can also run it manually.
 
 The `Release When zot Updates` workflow also runs hourly. It checks the latest `github.com/patriceckhart/zot` release tag. If `go.mod` is behind, it updates the zot dependency, builds a new `Zot.xcframework.zip`, bumps this bridge's release version, updates `Package.swift`, and publishes a GitHub release.
 

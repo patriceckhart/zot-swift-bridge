@@ -1,6 +1,8 @@
 name: Release Swift Package
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
@@ -18,6 +20,7 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
     runs-on: macos-15
 
     steps:
@@ -68,7 +71,11 @@ jobs:
       - name: Update Package.swift for this release
         run: |
           export VERSION="${{ steps.version.outputs.version }}"
-          export REPO="${{ inputs.repository }}"
+          REPO="${{ inputs.repository }}"
+          if [ -z "$REPO" ]; then
+            REPO="${{ github.repository }}"
+          fi
+          export REPO
           export CHECKSUM="${{ steps.checksum.outputs.checksum }}"
           python3 - <<'PY'
           from pathlib import Path
