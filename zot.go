@@ -15,6 +15,7 @@ import (
 	zotagent "github.com/patriceckhart/zot/packages/agent"
 	"github.com/patriceckhart/zot/packages/core"
 	"github.com/patriceckhart/zot/packages/provider"
+	providerauth "github.com/patriceckhart/zot/packages/provider/auth"
 )
 
 // Stream is implemented by Swift to receive streaming chat events.
@@ -33,14 +34,39 @@ type Session struct {
 	runID  int64
 }
 
-// NewSession creates a chat session with no file or shell tools.
+// NewSession creates a chat session with no file or shell tools using a provider API key.
 //
-// Supported providers: anthropic, openai, openai-responses, gemini.
+// Supported API-key providers: anthropic, openai, openai-responses, gemini.
 func NewSession(providerName, apiKey, model, systemPrompt string) (*Session, error) {
-	client, defaultModel, err := newClient(providerName, apiKey)
+	client, defaultModel, err := newAPIKeyClient(providerName, apiKey)
 	if err != nil {
 		return nil, err
 	}
+	return newSessionFromClient(client, model, defaultModel, systemPrompt), nil
+}
+
+// NewSessionWithOAuth creates a chat session with no file or shell tools using a
+// subscription OAuth access token.
+//
+// Supported OAuth providers: anthropic, openai-codex.
+// For openai-codex, accountID must be the ChatGPT account id from the OpenAI
+// id_token's chatgpt_account_id claim. Use ExtractOpenAIAccountID if Swift has
+// the id_token.
+func NewSessionWithOAuth(providerName, accessToken, accountID, model, systemPrompt string) (*Session, error) {
+	client, defaultModel, err := newOAuthClient(providerName, accessToken, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return newSessionFromClient(client, model, defaultModel, systemPrompt), nil
+}
+
+// ExtractOpenAIAccountID parses the ChatGPT account id from an OpenAI OAuth
+// id_token. It returns an empty string if the token does not contain the claim.
+func ExtractOpenAIAccountID(idToken string) string {
+	return providerauth.ExtractOpenAIAccountID(idToken)
+}
+
+func newSessionFromClient(client provider.Client, model, defaultModel, systemPrompt string) *Session {
 	if strings.TrimSpace(model) == "" {
 		model = defaultModel
 	}
@@ -54,7 +80,7 @@ func NewSession(providerName, apiKey, model, systemPrompt string) (*Session, err
 	agent := core.NewAgent(client, model, system, core.NewRegistry())
 	agent.MaxSteps = 8
 
-	return &Session{agent: agent}, nil
+	return &Session{agent: agent}
 }
 
 // Prompt sends one user message and streams the assistant response.
@@ -121,17 +147,38 @@ func sendEvent(stream Stream, ev core.AgentEvent) {
 	}
 }
 
-func newClient(name, apiKey string) (provider.Client, string, error) {
+func newAPIKeyClient(name, apiKey string) (provider.Client, string, error) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "", "anthropic":
-		return provider.NewAnthropic(apiKey, ""), "claude-sonnet-4-20250514", nil
+		return provider.NewAnthropic(apiKey, ""), "claude-sonnet-4-5", nil
 	case "openai":
-		return provider.NewOpenAI(apiKey, ""), "gpt-4.1", nil
+		return provider.NewOpenAI(apiKey, ""), "gpt-5", nil
 	case "openai-responses":
-		return provider.NewOpenAIResponses(apiKey, ""), "gpt-4.1", nil
+		return provider.NewOpenAIResponses(apiKey, ""), "gpt-5", nil
 	case "gemini", "google":
 		return provider.NewGemini(apiKey, ""), "gemini-2.5-pro", nil
+	case "openai-codex", "codex", "chatgpt":
+		return nil, "", fmt.Errorf("%s uses subscription OAuth; call NewSessionWithOAuth", name)
 	default:
 		return nil, "", fmt.Errorf("unsupported provider: %s", name)
+	}
+}
+
+func newOAuthClient(name, accessToken, accountID string) (provider.Client, string, error) {
+	providerName := strings.ToLower(strings.TrimSpace(name))
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, "", fmt.Errorf("missing OAuth access token")
+	}
+
+	switch providerName {
+	case "", "anthropic", "claude":
+		return provider.NewAnthropicOAuth(accessToken, ""), "claude-sonnet-4-5", nil
+	case "openai", "openai-codex", "codex", "chatgpt":
+		if strings.TrimSpace(accountID) == "" {
+			return nil, "", fmt.Errorf("missing ChatGPT account id for openai-codex")
+		}
+		return provider.NewOpenAICodex(accessToken, accountID, ""), "gpt-5.5", nil
+	default:
+		return nil, "", fmt.Errorf("unsupported OAuth provider: %s", name)
 	}
 }

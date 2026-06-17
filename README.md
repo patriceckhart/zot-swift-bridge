@@ -7,13 +7,13 @@ This package compiles zot's Go agent core into an Apple `xcframework` using `gom
 - Native: ships as a binary `xcframework`, no Go toolchain needed by consumers.
 - Streaming: text deltas, tool events, usage, and errors arrive as they happen.
 - Cross-platform: one API for iOS and macOS.
-- Small surface: three calls (`NewSession`, `prompt`, `abort`).
+- Small surface: create a session, send a prompt, abort when needed.
 
 ## Requirements
 
 - iOS 15+ or macOS 12+
 - Xcode 15+
-- A provider API key (Anthropic, OpenAI, or Gemini)
+- A provider API key (Anthropic, OpenAI, or Gemini), or subscription OAuth credentials for Claude/ChatGPT
 
 ## Install
 
@@ -67,7 +67,7 @@ var error: NSError?
 let session = ZotNewSession(
     "anthropic",                       // anthropic | openai | openai-responses | gemini
     apiKey,                            // your provider API key
-    "claude-sonnet-4-20250514",        // empty string "" uses the provider default
+    "claude-sonnet-4-5",               // empty string "" uses the provider default
     "You are a concise assistant.",    // system prompt (optional)
     &error
 )
@@ -88,7 +88,9 @@ session?.abort()
 
 | Call | Description |
 |---|---|
-| `ZotNewSession(provider, apiKey, model, systemPrompt, &error)` | Creates a chat session. Pass `""` for `model` to use the provider default. |
+| `ZotNewSession(provider, apiKey, model, systemPrompt, &error)` | Creates a chat session using an API key. Pass `""` for `model` to use the provider default. |
+| `ZotNewSessionWithOAuth(provider, accessToken, accountID, model, systemPrompt, &error)` | Creates a chat session using subscription OAuth credentials. |
+| `ZotExtractOpenAIAccountID(idToken)` | Parses the ChatGPT account id from an OpenAI OAuth `id_token`. |
 | `session.prompt(_:stream:)` | Sends one user message and streams the reply. Blocks until the turn completes. |
 | `session.abort()` | Cancels the active prompt, if any. |
 
@@ -103,12 +105,52 @@ session?.abort()
 
 ### Supported providers
 
+API key providers:
+
 `anthropic`, `openai`, `openai-responses`, `gemini`
+
+Subscription OAuth providers:
+
+`anthropic`, `openai-codex`
+
+`openai-codex` is the ChatGPT Plus/Pro Codex route used by zot. It requires both an OAuth access token and the ChatGPT account id from the OAuth `id_token`.
+
+## Subscription OAuth
+
+The bridge can create sessions from subscription OAuth credentials, matching zot's Claude Code and OpenAI Codex client paths:
+
+```swift
+var error: NSError?
+
+// Claude Pro/Max OAuth access token.
+let claudeSession = ZotNewSessionWithOAuth(
+    "anthropic",
+    claudeAccessToken,
+    "",                       // accountID is not used by Anthropic
+    "",                       // default: claude-sonnet-4-5
+    "You are a concise assistant.",
+    &error
+)
+
+// ChatGPT Plus/Pro Codex OAuth access token.
+let accountID = ZotExtractOpenAIAccountID(openAIIDToken)
+let chatGPTSession = ZotNewSessionWithOAuth(
+    "openai-codex",
+    openAIAccessToken,
+    accountID,
+    "",                       // default: gpt-5.5
+    "You are a concise assistant.",
+    &error
+)
+```
+
+This package does not run the OAuth browser login itself. Apps should collect tokens using their own native auth flow, for example with `ASWebAuthenticationSession`, then pass the resulting access token to `ZotNewSessionWithOAuth`. Refresh and secure storage are also the app's responsibility.
 
 ## Security
 
-- Do not hardcode provider API keys in a shipped app. Users can extract them.
-- Prefer user-supplied keys, or proxy requests through your own server.
+- Do not hardcode provider API keys or OAuth tokens in a shipped app. Users can extract them.
+- Prefer user-supplied credentials, Keychain storage, or proxy requests through your own server.
+- Subscription OAuth routes reuse provider CLI flows and may be subject to provider terms or revocation.
 - iOS cannot run zot's desktop shell, filesystem, or subprocess tools. This bridge intentionally registers none of them, so it is safe for the App Store sandbox.
 
 ## Building the framework yourself
