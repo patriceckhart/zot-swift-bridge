@@ -18,8 +18,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/mattn/go-runewidth v0.0.16 h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
 github.com/mattn/go-runewidth v0.0.16/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
-github.com/patriceckhart/zot v0.2.87 h1:OdJJ3aWCltzAthOrfk77hHPsVdselH5yBmjnr0gGpic=
-github.com/patriceckhart/zot v0.2.87/go.mod h1:k4QKp5tsIGraXVOPb8cKpND3UVPjHsRwL7FSvxYGIWc=
+github.com/patriceckhart/zot v0.2.88 h1:fVXyFj/B94zWb5eAjrhDFZFXYvT4Sk8aZyIrzSpsut4=
+github.com/patriceckhart/zot v0.2.88/go.mod h1:k4QKp5tsIGraXVOPb8cKpND3UVPjHsRwL7FSvxYGIWc=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/sahilm/fuzzy v0.1.1 h1:ceu5RHF8DGgoi+/dR5PsECjCDH1BE3Fnmpo7aVXOdRA=
