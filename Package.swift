@@ -13,8 +13,8 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "Zot",
-            url: "https://github.com/patriceckhart/zot-swift-bridge/releases/download/0.0.60/Zot.xcframework.zip",
-            checksum: "7ecabd376eac9af91e6241fb3b76ef8ba88ab95148e552252f49ecb98869679f"
+            url: "https://github.com/patriceckhart/zot-swift-bridge/releases/download/0.0.61/Zot.xcframework.zip",
+            checksum: "6eca77521d4e7cf0a8d04d0f9fe793212d3b1c3f993b694fafd7da10347bbc07"
         )
     ]
 )
