@@ -2,12 +2,15 @@ module github.com/patriceckhart/zot-swift/zot-swift-bridge
 
 go 1.25.0
 
-require github.com/patriceckhart/zot v0.4.34
+require github.com/patriceckhart/zot v0.4.35
 
 require (
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.11.0 // indirect
 	github.com/klauspost/compress v1.19.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
@@ -21,6 +24,7 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/term v0.25.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/tools v0.46.0 // indirect
 )
 
