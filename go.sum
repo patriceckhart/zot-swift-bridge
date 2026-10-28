@@ -43,8 +43,8 @@ github.com/ncruces/go-sqlite3 v0.32.0 h1:hNBUXp88LrfQCsuyXLqWTbTUG35sUuktDsqhhgH
 github.com/ncruces/go-sqlite3 v0.32.0/go.mod h1:MIWTK60ONDl0oVY073zYvJP21C3Dly6P9bxVpgkLwdQ=
 github.com/ncruces/julianday v1.0.0 h1:fH0OKwa7NWvniGQtxdJRxAgkBMolni2BjDHaWTxqt7M=
 github.com/ncruces/julianday v1.0.0/go.mod h1:Dusn2KvZrrovOMJuOt0TNXL6tB7U2E8kvza5fFc9G7g=
-github.com/patriceckhart/zot v0.4.54 h1:X50cc2wSV880+w+8ktc1XJMG7ELWeeBKoKEY048svb0=
-github.com/patriceckhart/zot v0.4.54/go.mod h1:eJFXge4MXC6qJr2ddrfi0M4pXgpjkRM8UOJjx9cqdP8=
+github.com/patriceckhart/zot v0.4.55 h1:/tPxYfvqbZjuRggCZ+Vdvb7/NvCDPPBkpPOyNVbxlvI=
+github.com/patriceckhart/zot v0.4.55/go.mod h1:eJFXge4MXC6qJr2ddrfi0M4pXgpjkRM8UOJjx9cqdP8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
