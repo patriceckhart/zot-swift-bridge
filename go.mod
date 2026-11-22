@@ -2,7 +2,7 @@ module github.com/patriceckhart/zot-swift/zot-swift-bridge
 
 go 1.25.5
 
-require github.com/patriceckhart/zot v0.4.87
+require github.com/patriceckhart/zot v0.4.88
 
 require (
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
